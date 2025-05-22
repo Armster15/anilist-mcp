@@ -4690,7 +4690,7 @@ export type MediaListCollectionQueryQueryVariables = Exact<{
 }>;
 
 
-export type MediaListCollectionQueryQuery = { __typename?: 'Query', MediaListCollection?: { __typename?: 'MediaListCollection', hasNextChunk?: boolean | null, lists?: Array<{ __typename?: 'MediaListGroup', entries?: Array<{ __typename?: 'MediaList', score?: number | null, notes?: string | null, media?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null> | null } | null };
+export type MediaListCollectionQueryQuery = { __typename?: 'Query', MediaListCollection?: { __typename?: 'MediaListCollection', hasNextChunk?: boolean | null, lists?: Array<{ __typename?: 'MediaListGroup', entries?: Array<{ __typename?: 'MediaList', score?: number | null, notes?: string | null, startedAt?: { __typename?: 'FuzzyDate', year?: number | null, month?: number | null } | null, completedAt?: { __typename?: 'FuzzyDate', year?: number | null, month?: number | null } | null, media?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null> | null } | null };
 
 export type SearchQueryQueryVariables = Exact<{
   page?: InputMaybe<Scalars['Int']['input']>;
@@ -4736,7 +4736,17 @@ export type MediaQueryQueryVariables = Exact<{
 }>;
 
 
-export type MediaQueryQuery = { __typename?: 'Query', Media?: { __typename?: 'Media', id: number, description?: string | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, recommendations?: { __typename?: 'RecommendationConnection', nodes?: Array<{ __typename?: 'Recommendation', mediaRecommendation?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null } | null };
+export type MediaQueryQuery = { __typename?: 'Query', Media?: { __typename?: 'Media', id: number, description?: string | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, startDate?: { __typename?: 'FuzzyDate', year?: number | null, month?: number | null } | null, endDate?: { __typename?: 'FuzzyDate', year?: number | null, month?: number | null } | null, recommendations?: { __typename?: 'RecommendationConnection', nodes?: Array<{ __typename?: 'Recommendation', rating?: number | null, mediaRecommendation?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null } | null };
+
+export type ReviewQueryQueryVariables = Exact<{
+  mediaId: Scalars['Int']['input'];
+  type: MediaType;
+  ratingLimit?: InputMaybe<Scalars['Int']['input']>;
+  sort?: InputMaybe<Array<InputMaybe<ReviewSort>> | InputMaybe<ReviewSort>>;
+}>;
+
+
+export type ReviewQueryQuery = { __typename?: 'Query', Media?: { __typename?: 'Media', reviews?: { __typename?: 'ReviewConnection', nodes?: Array<{ __typename?: 'Review', id: number, rating?: number | null, ratingAmount?: number | null, userRating?: ReviewRating | null, body?: string | null } | null> | null } | null } | null };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -4786,6 +4796,14 @@ export const MediaListCollectionQueryDocument = new TypedDocumentString(`
       entries {
         score
         notes
+        startedAt {
+          year
+          month
+        }
+        completedAt {
+          year
+          month
+        }
         media {
           id
           title {
@@ -4858,9 +4876,18 @@ export const MediaQueryDocument = new TypedDocumentString(`
       english
       romaji
     }
+    startDate {
+      year
+      month
+    }
+    endDate {
+      year
+      month
+    }
     description
     recommendations {
       nodes {
+        rating
         mediaRecommendation {
           id
           title {
@@ -4877,3 +4904,18 @@ export const MediaQueryDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<MediaQueryQuery, MediaQueryQueryVariables>;
+export const ReviewQueryDocument = new TypedDocumentString(`
+    query ReviewQuery($mediaId: Int!, $type: MediaType!, $ratingLimit: Int = 5, $sort: [ReviewSort] = [RATING_DESC]) {
+  Media(id: $mediaId, type: $type) {
+    reviews(limit: $ratingLimit, sort: $sort) {
+      nodes {
+        id
+        rating
+        ratingAmount
+        userRating
+        body
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ReviewQueryQuery, ReviewQueryQueryVariables>;

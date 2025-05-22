@@ -11,6 +11,7 @@ import {
   MediaSource,
   MediaSeason,
   MediaSort,
+  ReviewSort,
 } from "./graphql/graphql";
 import { produce } from "immer";
 
@@ -60,6 +61,14 @@ const MediaListCollectionQuery = graphql(`
         entries {
           score
           notes
+          startedAt {
+            year
+            month
+          }
+          completedAt {
+            year
+            month
+          }
 
           media {
             id
@@ -169,9 +178,18 @@ const MediaQuery = graphql(`
         english
         romaji
       }
+      startDate {
+        year
+        month
+      }
+      endDate {
+        year
+        month
+      }
       description
       recommendations {
         nodes {
+          rating
           mediaRecommendation {
             id
             title {
@@ -183,6 +201,27 @@ const MediaQuery = graphql(`
               name
             }
           }
+        }
+      }
+    }
+  }
+`);
+
+const ReviewQuery = graphql(`
+  query ReviewQuery(
+    $mediaId: Int!
+    $type: MediaType!
+    $ratingLimit: Int = 5
+    $sort: [ReviewSort] = [RATING_DESC]
+  ) {
+    Media(id: $mediaId, type: $type) {
+      reviews(limit: $ratingLimit, sort: $sort) {
+        nodes {
+          id
+          rating
+          ratingAmount
+          userRating
+          body
         }
       }
     }
@@ -368,7 +407,7 @@ server.tool(
 
 server.tool(
   "get-anilist-media",
-  "Gets information about a specific media item on Anilist from its id",
+  "Gets information about a specific media item on Anilist from its id. This tool can also be used to get recommendations similar to this media item.",
   {
     id: z.number(),
     type: z.union([z.literal("anime"), z.literal("manga")]),
@@ -388,6 +427,39 @@ server.tool(
         {
           type: "text",
           text: data,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "get-anilist-media-reviews",
+  "Gets reviews for a specific media item on Anilist. You can specify the number of reviews and sort order.",
+  {
+    mediaId: z.number(),
+    type: z.union([z.literal("anime"), z.literal("manga")]),
+    ratingLimit: z.number().optional().default(5),
+    sort: z
+      .array(z.nativeEnum(ReviewSort))
+      .optional()
+      .default([ReviewSort.RatingDesc]),
+  },
+  async ({ mediaId, type, ratingLimit, sort }) => {
+    const res = await execute(ReviewQuery, {
+      mediaId,
+      type: type === "manga" ? MediaType.Manga : MediaType.Anime,
+      ratingLimit,
+      sort,
+    });
+    const reviews = res.Media?.reviews?.nodes
+      ? JSON.stringify(res.Media.reviews.nodes)
+      : "Failed to fetch reviews.";
+    return {
+      content: [
+        {
+          type: "text",
+          text: reviews,
         },
       ],
     };
