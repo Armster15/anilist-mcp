@@ -3,7 +3,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { graphql } from "./graphql";
 import { execute } from "./graphql/execute";
-import { MediaFormat, MediaListSort, MediaType } from "./graphql/graphql";
+import {
+  MediaFormat,
+  MediaListSort,
+  MediaType,
+  MediaStatus,
+  MediaSource,
+  MediaSeason,
+  MediaSort,
+} from "./graphql/graphql";
 import { produce } from "immer";
 
 // Create server instance
@@ -21,8 +29,13 @@ const UserQuery = graphql(`
     User(name: $username) {
       name
       about
-      avatar {
-        large
+      statistics {
+        anime {
+          count
+        }
+        manga {
+          count
+        }
       }
     }
   }
@@ -58,24 +71,11 @@ const MediaListCollectionQuery = graphql(`
             tags {
               name
             }
-            recommendations {
-              nodes {
-                mediaRecommendation {
-                  id
-                  title {
-                    english
-                    romaji
-                  }
-                  genres
-                  tags {
-                    name
-                  }
-                }
-              }
-            }
           }
         }
       }
+
+      hasNextChunk
     }
   }
 `);
@@ -161,6 +161,34 @@ const SearchQuery = graphql(`
   }
 `);
 
+const MediaQuery = graphql(`
+  query MediaQuery($id: Int!, $type: MediaType!) {
+    Media(id: $id, type: $type) {
+      id
+      title {
+        english
+        romaji
+      }
+      description
+      recommendations {
+        nodes {
+          mediaRecommendation {
+            id
+            title {
+              english
+              romaji
+            }
+            genres
+            tags {
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+`);
+
 server.tool(
   "get-anilist-user",
   "Gets user data for a provided username from Anilist",
@@ -187,18 +215,25 @@ server.tool(
 
 server.tool(
   "get-anilist-user-media",
-  "Gets all the anime or manga that a specific user has watched/read. Includes user-specific data such as score, notes, and general information such as genres, description, etc.",
+  `
+  Gets the anime or manga that a specific user has watched/read. Includes user-specific data such as score, notes, and general information such as genres, description, etc.
+  You can optionally provide a chunk and perChunk parameter to get a specific chunk of the data. Use this for pagination.
+  If you do not provide a chunk, it will default to 1.
+  If you do not provide a perChunk, it will default to 10.
+  `,
   {
     username: z.string(),
     type: z.union([z.literal("anime"), z.literal("manga")]),
+    chunk: z.number().optional().default(1),
+    perChunk: z.number().optional().default(10),
   },
 
-  async ({ username, type }) => {
+  async ({ username, type, chunk, perChunk }) => {
     const res = await execute(MediaListCollectionQuery, {
       username,
       type: type === "manga" ? MediaType.Manga : MediaType.Anime,
-      chunk: 0,
-      perChunk: 10,
+      chunk,
+      perChunk,
       sort: [MediaListSort.StartedOnDesc],
     });
 
@@ -216,19 +251,24 @@ server.tool(
       }
     }
 
-    const allShowsWatchedIds = actualShowsWatched.map(
-      (entry) => entry!.media!.id
-    );
-    const filteredActualShowsWatched = produce(actualShowsWatched, (draft) => {
-      for (const entry of draft) {
-        entry!.media!.recommendations!.nodes!.filter(
-          (node) =>
-            !allShowsWatchedIds.includes(node?.mediaRecommendation?.id ?? 0)
-        );
-      }
-    });
+    let hasNextChunk = res.MediaListCollection.hasNextChunk;
 
-    const text = JSON.stringify(filteredActualShowsWatched);
+    // const allShowsWatchedIds = actualShowsWatched.map(
+    //   (entry) => entry!.media!.id
+    // );
+    // const filteredActualShowsWatched = produce(actualShowsWatched, (draft) => {
+    //   for (const entry of draft) {
+    //     entry!.media!.recommendations!.nodes!.filter(
+    //       (node) =>
+    //         !allShowsWatchedIds.includes(node?.mediaRecommendation?.id ?? 0)
+    //     );
+    //   }
+    // });
+
+    const text = JSON.stringify({
+      showsWatched: actualShowsWatched,
+      hasNextChunk,
+    });
 
     return {
       content: [
@@ -246,31 +286,108 @@ server.tool(
   "Searches for anime or manga on Anilist with provided criteria. Genres and tags must be valid Anilist tags; if you have access to genres and tags from previously fetched media, reference those directly as they are guaranteed to exist. As a general rule of thumb, genres are general categories (ex: Romance), while tags are more specific, so if unsure, guess genre strings but not tag strings.",
   {
     type: z.union([z.literal("anime"), z.literal("manga")]),
-    query: z.string().optional(),
+    page: z.number().optional(),
+    id: z.number().optional(),
+    isAdult: z.boolean().optional(),
+    search: z.string().optional(),
+    format: z.array(z.nativeEnum(MediaFormat)).optional(),
+    status: z.nativeEnum(MediaStatus).optional(),
+    countryOfOrigin: z.string().optional(),
+    source: z.nativeEnum(MediaSource).optional(),
+    season: z.nativeEnum(MediaSeason).optional(),
+    seasonYear: z.number().optional(),
+    year: z.string().optional(),
+    onList: z.boolean().optional(),
+    yearLesser: z.number().optional(),
+    yearGreater: z.number().optional(),
+    episodeLesser: z.number().optional(),
+    episodeGreater: z.number().optional(),
+    durationLesser: z.number().optional(),
+    durationGreater: z.number().optional(),
+    chapterLesser: z.number().optional(),
+    chapterGreater: z.number().optional(),
+    volumeLesser: z.number().optional(),
+    volumeGreater: z.number().optional(),
+    licensedBy: z.array(z.number()).optional(),
+    isLicensed: z.boolean().optional(),
     genres: z.array(z.string()).optional(),
+    excludedGenres: z.array(z.string()).optional(),
     tags: z.array(z.string()).optional(),
+    excludedTags: z.array(z.string()).optional(),
+    minimumTagRank: z.number().optional(),
+    sort: z.array(z.nativeEnum(MediaSort)).optional(),
+    perPage: z.number().optional(),
   },
-  async ({ query, type, genres, tags }) => {
-    const res = await execute(SearchQuery, {
-      format:
+  async (args) => {
+    const { type, ...rest } = args;
+    // Default format for anime/manga if not provided
+    let format = rest.format;
+    if (!format) {
+      format =
         type === "manga"
           ? [MediaFormat.Manga]
-          : [MediaFormat.Tv, MediaFormat.Ona],
-      perPage: 10,
-      genres: genres,
-      search: query,
-      tags: tags,
+          : [MediaFormat.Tv, MediaFormat.Ona];
+    }
+    // For GraphQL, if format or sort is a single value, pass as value, else as array
+    let gqlFormat: any = format;
+    if (Array.isArray(format)) {
+      if (format.length === 1) {
+        gqlFormat = format[0];
+      } else if (format.length === 0) {
+        gqlFormat = undefined;
+      }
+    }
+    let sort = rest.sort;
+    let gqlSort: any = sort;
+    if (Array.isArray(sort)) {
+      if (sort.length === 1) {
+        gqlSort = sort[0];
+      } else if (sort.length === 0) {
+        gqlSort = undefined;
+      }
+    }
+    const res = await execute(SearchQuery, {
+      ...rest,
+      type: type === "manga" ? MediaType.Manga : MediaType.Anime,
+      ...(gqlFormat ? { format: gqlFormat } : {}),
+      ...(gqlSort ? { sort: gqlSort } : {}),
     });
-
     const data = res.Page?.media
       ? JSON.stringify(res.Page.media)
       : "Failed to fetch user data.";
-
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(data),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "get-anilist-media",
+  "Gets information about a specific media item on Anilist from its id",
+  {
+    id: z.number(),
+    type: z.union([z.literal("anime"), z.literal("manga")]),
+  },
+  async ({ id, type }) => {
+    const res = await execute(MediaQuery, {
+      id,
+      type: type === "manga" ? MediaType.Manga : MediaType.Anime,
+    });
+
+    const data = res.Media
+      ? JSON.stringify(res.Media)
+      : "Failed to fetch media data.";
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: data,
         },
       ],
     };

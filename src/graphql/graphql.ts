@@ -4679,7 +4679,7 @@ export type UserQueryQueryVariables = Exact<{
 }>;
 
 
-export type UserQueryQuery = { __typename?: 'Query', User?: { __typename?: 'User', name: string, about?: string | null, avatar?: { __typename?: 'UserAvatar', large?: string | null } | null } | null };
+export type UserQueryQuery = { __typename?: 'Query', User?: { __typename?: 'User', name: string, about?: string | null, statistics?: { __typename?: 'UserStatisticTypes', anime?: { __typename?: 'UserStatistics', count: number } | null, manga?: { __typename?: 'UserStatistics', count: number } | null } | null } | null };
 
 export type MediaListCollectionQueryQueryVariables = Exact<{
   username: Scalars['String']['input'];
@@ -4690,7 +4690,7 @@ export type MediaListCollectionQueryQueryVariables = Exact<{
 }>;
 
 
-export type MediaListCollectionQueryQuery = { __typename?: 'Query', MediaListCollection?: { __typename?: 'MediaListCollection', lists?: Array<{ __typename?: 'MediaListGroup', entries?: Array<{ __typename?: 'MediaList', score?: number | null, notes?: string | null, media?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null, recommendations?: { __typename?: 'RecommendationConnection', nodes?: Array<{ __typename?: 'Recommendation', mediaRecommendation?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null } | null } | null> | null } | null> | null } | null };
+export type MediaListCollectionQueryQuery = { __typename?: 'Query', MediaListCollection?: { __typename?: 'MediaListCollection', hasNextChunk?: boolean | null, lists?: Array<{ __typename?: 'MediaListGroup', entries?: Array<{ __typename?: 'MediaList', score?: number | null, notes?: string | null, media?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null> | null } | null };
 
 export type SearchQueryQueryVariables = Exact<{
   page?: InputMaybe<Scalars['Int']['input']>;
@@ -4730,6 +4730,14 @@ export type SearchQueryQueryVariables = Exact<{
 
 export type SearchQueryQuery = { __typename?: 'Query', Page?: { __typename?: 'Page', media?: Array<{ __typename?: 'Media', id: number, averageScore?: number | null, popularity?: number | null, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', romaji?: string | null, english?: string | null } | null } | null> | null } | null };
 
+export type MediaQueryQueryVariables = Exact<{
+  id: Scalars['Int']['input'];
+  type: MediaType;
+}>;
+
+
+export type MediaQueryQuery = { __typename?: 'Query', Media?: { __typename?: 'Media', id: number, description?: string | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, recommendations?: { __typename?: 'RecommendationConnection', nodes?: Array<{ __typename?: 'Recommendation', mediaRecommendation?: { __typename?: 'Media', id: number, genres?: Array<string | null> | null, title?: { __typename?: 'MediaTitle', english?: string | null, romaji?: string | null } | null, tags?: Array<{ __typename?: 'MediaTag', name: string } | null> | null } | null } | null> | null } | null } | null };
+
 export class TypedDocumentString<TResult, TVariables>
   extends String
   implements DocumentTypeDecoration<TResult, TVariables>
@@ -4754,8 +4762,13 @@ export const UserQueryDocument = new TypedDocumentString(`
   User(name: $username) {
     name
     about
-    avatar {
-      large
+    statistics {
+      anime {
+        count
+      }
+      manga {
+        count
+      }
     }
   }
 }
@@ -4783,24 +4796,10 @@ export const MediaListCollectionQueryDocument = new TypedDocumentString(`
           tags {
             name
           }
-          recommendations {
-            nodes {
-              mediaRecommendation {
-                id
-                title {
-                  english
-                  romaji
-                }
-                genres
-                tags {
-                  name
-                }
-              }
-            }
-          }
         }
       }
     }
+    hasNextChunk
   }
 }
     `) as unknown as TypedDocumentString<MediaListCollectionQueryQuery, MediaListCollectionQueryQueryVariables>;
@@ -4851,3 +4850,30 @@ export const SearchQueryDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<SearchQueryQuery, SearchQueryQueryVariables>;
+export const MediaQueryDocument = new TypedDocumentString(`
+    query MediaQuery($id: Int!, $type: MediaType!) {
+  Media(id: $id, type: $type) {
+    id
+    title {
+      english
+      romaji
+    }
+    description
+    recommendations {
+      nodes {
+        mediaRecommendation {
+          id
+          title {
+            english
+            romaji
+          }
+          genres
+          tags {
+            name
+          }
+        }
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<MediaQueryQuery, MediaQueryQueryVariables>;
